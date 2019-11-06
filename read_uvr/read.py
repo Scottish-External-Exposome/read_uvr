@@ -1,3 +1,5 @@
+__all__ = ['read_uvr','uvr_from_buffer']
+
 import numpy
 import xarray
 import pathlib
@@ -70,53 +72,57 @@ def parse_filenamef(name):
 
     return meta
 
-def read_uvr(fname):
-    """read dataset and produce an xarray dataset"""
+def uvr_from_buffer(fname,buf):
+    """parse meta data from file name and get data from byte buffer"""
     data = None
-    meta = parse_filenamef(fname.name)
+    meta = parse_filenamef(fname)
 
-    with open(fname, mode='rb') as infile:
-        # read header
-        rlen = meta['pixel']*DTYPES[meta['dtype']][0]().nbytes
-        d = infile.read(rlen)
-        npixel = int(d[:6])
-        nline  = int(d[6:12])
-        lon_min = float(d[12:20]) 
-        lat_max = float(d[20:28])
-        resolution = float(d[28:36])
-        slope = float(d[36:48])
-        offset = float(d[48:60])
-        para = d[61:69].strip()
-        outfile = d[70:110].strip()
+    rlen = meta['pixel']*DTYPES[meta['dtype']][0]().nbytes
+    npixel = int(buf[:6])
+    nline  = int(buf[6:12])
+    lon_min = float(buf[12:20]) 
+    lat_max = float(buf[20:28])
+    resolution = float(buf[28:36])
+    slope = float(buf[36:48])
+    offset = float(buf[48:60])
+    para = buf[61:69].strip()
+    outfile = buf[70:110].strip()
+    
+    assert npixel == meta['pixel']
+    assert nline  == meta['line']
 
-        assert npixel == meta['pixel']
-        assert nline  == meta['line']
 
-        raw_data = numpy.frombuffer(infile.read(),DTYPES[meta['dtype']][0]).reshape(1,nline,npixel)
-        raw_data = numpy.flip(raw_data,axis=1)
-        mask = numpy.where(raw_data == DTYPES[meta['dtype']][1], True, False)
-        raw_data = numpy.ma.array(offset+slope*raw_data,mask=mask)
-        
-        time = xarray.Variable(('time',), [meta['start_date']])
-        lat = xarray.Variable(('lat',),numpy.arange(nline)*resolution-lat_max)
-        lon = xarray.Variable(('lon',),lon_min+numpy.arange(npixel)*resolution)
+    raw_data = numpy.frombuffer(buf[rlen:],DTYPES[meta['dtype']][0]).reshape(1,nline,npixel)
+    raw_data = numpy.flip(raw_data,axis=1)
+    mask = numpy.where(raw_data == DTYPES[meta['dtype']][1], True, False)
+    raw_data = numpy.ma.array(offset+slope*raw_data,mask=mask)
 
-        d = xarray.Variable(('time','lat','lon'),
-                            raw_data,
-                            attrs = {'description': VARIABLES[meta['variable']][0],
-                                     'units': VARIABLES[meta['variable']][1]
-                                 },
-                            encoding = {'_FillValue':   DTYPES[meta['dtype']][1],
-                                        'scale_factor': slope,
-                                        'add_offset': offset,
-                                        'dtype': DTYPES[meta['dtype']][0]}
-                        )
-        data = xarray.Dataset({'time':time,
-                               'lat' : lat,
-                               'lon' : lon,
-                               meta['variable'] : d})
+    time = xarray.Variable(('time',), [meta['start_date']])
+    lat = xarray.Variable(('lat',),numpy.arange(nline)*resolution-lat_max)
+    lon = xarray.Variable(('lon',),lon_min+numpy.arange(npixel)*resolution)
+
+    d = xarray.Variable(('time','lat','lon'),
+                        raw_data,
+                        attrs = {'description': VARIABLES[meta['variable']][0],
+                                 'units': VARIABLES[meta['variable']][1]
+                             },
+                        encoding = {'_FillValue':   DTYPES[meta['dtype']][1],
+                                    'scale_factor': slope,
+                                    'add_offset': offset,
+                                    'dtype': DTYPES[meta['dtype']][0]}
+                    )
+    data = xarray.Dataset({'time':time,
+                           'lat' : lat,
+                           'lon' : lon,
+                           meta['variable'] : d})
 
     return data
+
+
+def read_uvr(fname):
+    """read dataset and produce an xarray dataset"""
+
+    return uvr_from_buffer(fname.name,open(fname, mode='rb').read())
 
 if __name__ == '__main__':
     import sys
@@ -132,7 +138,7 @@ if __name__ == '__main__':
     from matplotlib import pyplot
     import cartopy.crs as ccrs
     
-    if False:
+    if True:
         pyplot.imshow(d.uvb[0,:,:])
     else:
 
