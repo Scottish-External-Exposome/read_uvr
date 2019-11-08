@@ -1,11 +1,12 @@
 from .remote_files import *
 from .read import parse_filename
 import argparse
-import datetime
+import datetime, calendar, time
 from pathlib import Path
 import os, sys
 import logging
 import multiprocessing
+import xarray
 
 BASEURL = 'ftp://apollo.eorc.jaxa.jp/pub/JASMES/Global_05km/uv[a-b]/daily'
 
@@ -112,9 +113,45 @@ def main():
     for i in range(args.num_threads):
         tasks.put(None)
     # waiting for workers to finish
-    logger.debug('waiting for worker')
+    logger.debug('waiting for workers')
     for p in workers:
         p.join()
+
+    # check if we have all files for a month and merge them
+    dataFiles = {}
+    for f in path.iterdir():
+        if f.name.endswith('.nc'):
+            try:
+                var = f.name[:-3].split('_')[1]
+            except:
+                logger.error('cannot extract variable name for file {}'.format(f.name))
+                continue
+            if var not in dataFiles:
+                dataFiles[var] = 0
+            dataFiles[var] += 1
+    if len(dataFiles)>0:
+        haveAllFiles = True
+        numDays = calendar.monthrange(args.year,args.month)[1]
+        for v in dataFiles:
+            if dataFiles[v] != numDays:
+                logger.info('not all datafiles for variable {} of {}-{} available'.format(v,args.year,args.month))
+                haveAllFiles = False
+    else:
+        haveAllFiles = False
+
+    if haveAllFiles:
+        logger.info('merging datafiles for {}-{}'.format(args.year,args.month))
+        ds = xarray.open_mfdataset(path.glob('*.nc'))
+        outname = path.parent.joinpath('{}{:02d}.nc'.format(args.year,args.month))
+        logger.info('writing {}'.format(outname))
+        ds.to_netcdf(outname)
+        ds.close()
+
+        # removing individual datasets
+        logger.info('removing partial datasets')
+        for f in path.glob('*.nc'):
+            f.unlink()
+        path.rmdir()
 
 
 if __name__ == '__main__':
