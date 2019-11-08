@@ -1,4 +1,4 @@
-__all__ = ['read_uvr','uvr_from_buffer']
+__all__ = ['read_uvr','uvr_from_buffer','parse_filename']
 
 import numpy
 import xarray
@@ -35,7 +35,7 @@ DTYPES = {
     '8b' : (numpy.uint8,255)
 }
 
-def parse_filenamef(name):
+def parse_filename(name):
     """parse the file name of the dataset"""
     NCHAR = 44
     if len(name)!=NCHAR:
@@ -75,7 +75,7 @@ def parse_filenamef(name):
 def uvr_from_buffer(fname,buf):
     """parse meta data from file name and get data from byte buffer"""
     data = None
-    meta = parse_filenamef(fname)
+    meta = parse_filename(fname)
 
     rlen = meta['pixel']*DTYPES[meta['dtype']][0]().nbytes
     npixel = int(buf[:6])

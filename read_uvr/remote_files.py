@@ -1,3 +1,5 @@
+__all__ = ['getFileNames','download']
+
 import urllib
 import pathlib
 from ftplib import FTP
@@ -49,7 +51,7 @@ def download(url):
     is_zipped = fname.endswith('.gz')
     if is_zipped:
         fname = fname[:-3]
-    with urllib.request.urlopen(u) as f:
+    with urllib.request.urlopen(url) as f:
         if is_zipped:
             raw_data = gzip.GzipFile(fileobj=f).read()
         else:
