@@ -51,6 +51,8 @@ def main():
     logger = logging.getLogger('uvr')
     if args.debug:
         logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
     if args.log is not None:
         lh = logging.FileHandler(args.log)
     else:
