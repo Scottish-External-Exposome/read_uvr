@@ -1,2 +1,5 @@
 *~
 read_uvr/__pycache__/
+build/
+dist/
+uvr.egg-info/
